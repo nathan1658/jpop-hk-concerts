@@ -22,6 +22,7 @@ import { seedConcerts } from "@/data/concerts";
 import { monitoredSources } from "@/data/sources";
 import {
   formatDateRange,
+  formatHongKongDateTime,
   formatMonthKey,
   formatSaleDateTime,
   getEventTime,
@@ -30,11 +31,13 @@ import {
   getLastDate,
   getSaleTime,
   loadConcerts,
+  loadSyncMetadata,
   normalizeStatus,
   sortConcerts,
   subscribeToConcerts,
+  subscribeToSyncMetadata,
 } from "@/lib/concerts";
-import type { ConcertEvent, TicketStatus } from "@/types/concert";
+import type { ConcertEvent, SyncMetadata, TicketStatus } from "@/types/concert";
 
 type ViewMode = "upcoming" | "all" | "saved";
 type NewRecordAlertMode = "off" | "all" | "artists";
@@ -62,6 +65,49 @@ const FIRED_SALE_ALERTS_KEY = "jpop-hk-sale-alerts-fired";
 const NEW_RECORD_ALERT_MODE_KEY = "jpop-hk-new-record-alert-mode";
 const NEW_RECORD_ARTISTS_KEY = "jpop-hk-new-record-artists";
 const KNOWN_EVENT_IDS_KEY = "jpop-hk-known-event-ids";
+const BANNER_KEY = "jpop-hk-banner";
+
+const bannerOptions = [
+  {
+    id: "lisa-red",
+    label: "紅黑舞台",
+    src: "https://dynamicmedia.livenationinternational.com/p/s/r/19112c29-89f7-4c46-9a82-477def8a04fd.png?format=webp&width=1200&quality=75",
+    position: "center",
+    overlay:
+      "linear-gradient(90deg, rgba(19, 19, 20, .92) 0%, rgba(24, 20, 20, .78) 42%, rgba(120, 34, 28, .38) 74%, rgba(12, 14, 15, .22) 100%)",
+  },
+  {
+    id: "zutomayo-lab",
+    label: "實驗室綠",
+    src: "https://www.asiaworld-expo.com/AsiaWorldExpoLocal/media/AWE/ZTMY_HK-2026-AWE_1100x704_1.jpg?ext=.jpg",
+    position: "center",
+    overlay:
+      "linear-gradient(90deg, rgba(9, 32, 30, .94) 0%, rgba(10, 52, 48, .76) 45%, rgba(38, 88, 79, .36) 74%, rgba(9, 32, 30, .24) 100%)",
+  },
+  {
+    id: "arena-blue",
+    label: "Arena 藍",
+    src: "https://www.asiaworld-expo.com/AsiaWorldExpoLocal/media/AWE/1100x704_1.png?ext=.png",
+    position: "center",
+    overlay:
+      "linear-gradient(90deg, rgba(14, 29, 45, .95) 0%, rgba(22, 45, 72, .78) 44%, rgba(72, 96, 133, .34) 74%, rgba(14, 29, 45, .24) 100%)",
+  },
+  {
+    id: "city-night",
+    label: "香港夜景",
+    src: "/assets/concert-city-banner.png",
+    position: "center",
+    overlay:
+      "linear-gradient(90deg, rgba(8, 33, 38, .94) 0%, rgba(8, 33, 38, .78) 38%, rgba(8, 33, 38, .42) 70%, rgba(8, 33, 38, .25) 100%)",
+  },
+] as const;
+
+type BannerId = (typeof bannerOptions)[number]["id"];
+
+const defaultBannerId: BannerId = "lisa-red";
+
+const isBannerId = (value: string): value is BannerId =>
+  bannerOptions.some((option) => option.id === value);
 
 const sourceConfidenceLabel: Record<ConcertEvent["sourceConfidence"], string> = {
   official: "官方",
@@ -179,6 +225,58 @@ const getSaleCountdownLabel = (event: ConcertEvent, now: Date) => {
   return `已於 ${formatSaleDateTime(event.generalSaleStart)} 開售`;
 };
 
+const getSaleNotice = (event: ConcertEvent, eventStatus: TicketStatus, now: Date) => {
+  if (eventStatus === "past") {
+    return {
+      tone: "past",
+      label: "演出已完結",
+      detail: "保留來源作日後翻查",
+    };
+  }
+
+  if (eventStatus === "sold-out") {
+    return {
+      tone: "sold-out",
+      label: "門票已售罄",
+      detail: event.generalSaleStart
+        ? `公開發售：${formatSaleDateTime(event.generalSaleStart)}`
+        : "請以官方票務為準",
+    };
+  }
+
+  const saleTime = getSaleTime(event);
+
+  if (!saleTime || !event.generalSaleStart) {
+    return {
+      tone: "watching",
+      label: "未公布公開發售時間",
+      detail: "等待官方來源更新",
+    };
+  }
+
+  if (saleTime.getTime() > now.getTime()) {
+    return {
+      tone: "soon",
+      label: getSaleCountdownLabel(event, now),
+      detail: "公開發售",
+    };
+  }
+
+  return {
+    tone: "on-sale",
+    label: `已於 ${formatSaleDateTime(event.generalSaleStart)} 開售`,
+    detail: "公開發售",
+  };
+};
+
+const saleNoticeClass: Record<string, string> = {
+  "on-sale": "border-emerald-200 bg-emerald-50 text-emerald-950",
+  soon: "border-amber-200 bg-amber-50 text-amber-950",
+  "sold-out": "border-stone-200 bg-stone-100 text-stone-800",
+  watching: "border-sky-200 bg-sky-50 text-sky-950",
+  past: "border-zinc-200 bg-zinc-100 text-zinc-700",
+};
+
 const getCalendarUrl = (event: ConcertEvent) => {
   const start = getFirstDate(event).replaceAll("-", "");
   const endDate = new Date(getEventTime(getLastDate(event)));
@@ -221,6 +319,15 @@ const loadStoredMode = (): NewRecordAlertMode => {
   return stored === "all" || stored === "artists" ? stored : "off";
 };
 
+const loadStoredBannerId = (): BannerId => {
+  if (typeof window === "undefined") {
+    return defaultBannerId;
+  }
+
+  const stored = window.localStorage.getItem(BANNER_KEY);
+  return stored && isBannerId(stored) ? stored : defaultBannerId;
+};
+
 const eventMatchesArtistWatch = (event: ConcertEvent, artists: string[]) => {
   const haystack = normalizeForMatch(
     [event.artist, event.artistJa, event.tour].filter(Boolean).join(" "),
@@ -235,10 +342,12 @@ const eventMatchesArtistWatch = (event: ConcertEvent, artists: string[]) => {
 export function ConcertDashboard() {
   const [events, setEvents] = useState<ConcertEvent[]>(seedConcerts);
   const [dataSource, setDataSource] = useState<"firestore" | "seed">("seed");
+  const [syncMetadata, setSyncMetadata] = useState<SyncMetadata | null>(null);
   const [query, setQuery] = useState("");
   const [viewMode, setViewMode] = useState<ViewMode>("upcoming");
   const [status, setStatus] = useState<TicketStatus | "all">("all");
   const [genre, setGenre] = useState("all");
+  const [bannerId, setBannerId] = useState<BannerId>(defaultBannerId);
   const [savedIds, setSavedIds] = useState<string[]>([]);
   const [alertIds, setAlertIds] = useState<string[]>([]);
   const [firedAlertIds, setFiredAlertIds] = useState<string[]>([]);
@@ -266,6 +375,7 @@ export function ConcertDashboard() {
       setNewRecordMode(loadStoredMode());
       setArtistWatchList(loadStoredIds(NEW_RECORD_ARTISTS_KEY));
       setKnownEventIds(loadStoredIds(KNOWN_EVENT_IDS_KEY));
+      setBannerId(loadStoredBannerId());
       setNotificationPermission("Notification" in window ? Notification.permission : "unsupported");
       setStorageReady(true);
     }, 0);
@@ -328,6 +438,22 @@ export function ConcertDashboard() {
   }, []);
 
   useEffect(() => {
+    const unsubscribe = subscribeToSyncMetadata(
+      (metadata) => setSyncMetadata(metadata),
+      (error) => {
+        console.warn("Realtime sync metadata unavailable", error);
+        loadSyncMetadata().then((metadata) => setSyncMetadata(metadata));
+      },
+    );
+
+    if (unsubscribe) {
+      return unsubscribe;
+    }
+
+    loadSyncMetadata().then((metadata) => setSyncMetadata(metadata));
+  }, []);
+
+  useEffect(() => {
     if (!storageReady) {
       return;
     }
@@ -376,15 +502,26 @@ export function ConcertDashboard() {
   }, [knownEventIds, storageReady]);
 
   useEffect(() => {
+    if (!storageReady) {
+      return;
+    }
+
+    window.localStorage.setItem(BANNER_KEY, bannerId);
+  }, [bannerId, storageReady]);
+
+  useEffect(() => {
     if (!("Notification" in window) || Notification.permission !== "granted") {
       return;
     }
 
     const dueEvents = events.filter((event) => {
       const saleTime = getSaleTime(event);
+      const eventStatus = normalizeStatus(event, now);
       return (
         saleTime &&
         saleTime.getTime() <= now.getTime() &&
+        eventStatus !== "sold-out" &&
+        eventStatus !== "past" &&
         alertIds.includes(event.id) &&
         !firedAlertIds.includes(event.id)
       );
@@ -538,6 +675,23 @@ export function ConcertDashboard() {
     .map((event) => event.lastVerified)
     .sort()
     .at(-1);
+  const selectedBanner =
+    bannerOptions.find((option) => option.id === bannerId) ??
+    bannerOptions.find((option) => option.id === defaultBannerId) ??
+    bannerOptions[0];
+  const syncRunLabel = syncMetadata?.lastRunAt
+    ? formatHongKongDateTime(syncMetadata.lastRunAt)
+    : null;
+  const syncStatusLabel =
+    syncMetadata?.status === "partial"
+      ? "部分成功"
+      : syncMetadata?.status === "failed"
+        ? "失敗"
+        : "成功";
+  const syncMetricDetail = syncRunLabel
+    ? `背景同步：${syncRunLabel}（${syncStatusLabel}）`
+    : "來源同步日期";
+  const verifiedMetricValue = syncMetadata?.lastVerified || lastVerified || "-";
   const dataSourceLabel = dataSource === "firestore" ? "即時資料" : "內置備份";
 
   const toggleSaved = (id: string) => {
@@ -620,14 +774,15 @@ export function ConcertDashboard() {
     <main className="min-h-screen overflow-x-hidden bg-[var(--page)] text-[var(--ink)]">
       <section className="relative isolate overflow-hidden border-b border-black/10">
         <Image
-          src="/assets/concert-city-banner.png"
+          src={selectedBanner.src}
           alt=""
           fill
           priority
           sizes="100vw"
           className="absolute inset-0 -z-20 object-cover"
+          style={{ objectPosition: selectedBanner.position }}
         />
-        <div className="absolute inset-0 -z-10 bg-[linear-gradient(90deg,rgba(8,33,38,.94)_0%,rgba(8,33,38,.78)_38%,rgba(8,33,38,.42)_70%,rgba(8,33,38,.25)_100%)]" />
+        <div className="absolute inset-0 -z-10" style={{ background: selectedBanner.overlay }} />
         <div className="mx-auto grid min-h-[520px] w-full max-w-7xl grid-cols-1 content-end gap-8 px-5 pb-8 pt-20 sm:px-8 lg:grid-cols-[minmax(0,1fr)_380px] lg:px-10">
           <div className="min-w-0 max-w-3xl">
             <h1 className="max-w-[7em] break-all font-serif text-[2.65rem] font-semibold leading-[1.08] text-[#fff8ea] sm:max-w-3xl sm:text-7xl sm:leading-[0.98]">
@@ -636,6 +791,32 @@ export function ConcertDashboard() {
             <p className="mt-5 max-w-2xl break-words text-lg leading-8 text-[#d6e7e2]">
               集中睇日本歌手、樂隊、VTuber 同虛擬歌手來港演出，連票務狀態、場地、來源核實同新紀錄通知一齊跟。
             </p>
+            <div
+              className="mt-7 flex max-w-2xl flex-wrap gap-2"
+              role="radiogroup"
+              aria-label="選擇頁首 banner"
+            >
+              {bannerOptions.map((option) => (
+                <button
+                  key={option.id}
+                  type="button"
+                  onClick={() => setBannerId(option.id)}
+                  aria-pressed={bannerId === option.id}
+                  className={`group grid h-12 w-[136px] min-w-0 grid-cols-[42px_minmax(0,1fr)] items-center overflow-hidden border text-left text-xs font-bold transition ${
+                    bannerId === option.id
+                      ? "border-[#fff8ea] bg-[#fff8ea] text-[#12343a]"
+                      : "border-white/25 bg-black/20 text-[#fff8ea] hover:border-white/60 hover:bg-black/35"
+                  }`}
+                >
+                  <span
+                    className="h-full bg-cover bg-center"
+                    style={{ backgroundImage: `url(${option.src})` }}
+                    aria-hidden
+                  />
+                  <span className="truncate px-2">{option.label}</span>
+                </button>
+              ))}
+            </div>
           </div>
 
           <div className="grid min-w-0 gap-3 self-end text-[#fff8ea] sm:grid-cols-3 lg:grid-cols-1">
@@ -654,8 +835,8 @@ export function ConcertDashboard() {
             <Metric
               icon={<CheckCircle2 size={18} />}
               label="最近核實"
-              value={lastVerified ?? "-"}
-              detail="來源同步日期"
+              value={verifiedMetricValue}
+              detail={syncMetricDetail}
             />
           </div>
         </div>
@@ -763,6 +944,7 @@ export function ConcertDashboard() {
                       const isAlertSet = alertIds.includes(event.id);
                       const saleTime = getSaleTime(event);
                       const isFutureSale = Boolean(saleTime && saleTime.getTime() > now.getTime());
+                      const saleNotice = getSaleNotice(event, eventStatus, now);
                       const eventImage = event.imageUrl ?? "/assets/concert-city-banner.png";
                       const eventImageAlt = event.imageAlt ?? `${event.artist} 香港演出圖片`;
 
@@ -866,17 +1048,13 @@ export function ConcertDashboard() {
                             </div>
 
                             <div
-                              className={`mt-4 flex flex-wrap items-center gap-2 border px-3 py-2 text-sm ${
-                                isFutureSale
-                                  ? "border-amber-200 bg-amber-50 text-amber-950"
-                                  : "border-emerald-200 bg-emerald-50 text-emerald-950"
-                              }`}
+                              className={`mt-4 flex flex-wrap items-center gap-2 border px-3 py-2 text-sm ${saleNoticeClass[saleNotice.tone]}`}
                             >
                               <Clock3 size={16} className="shrink-0" aria-hidden />
-                              <span className="font-bold">{getSaleCountdownLabel(event, now)}</span>
-                              {event.generalSaleStart ? (
+                              <span className="font-bold">{saleNotice.label}</span>
+                              {saleNotice.detail ? (
                                 <span className="text-xs font-semibold uppercase tracking-[0.12em] opacity-75">
-                                  公開發售
+                                  {saleNotice.detail}
                                 </span>
                               ) : null}
                             </div>
@@ -899,7 +1077,7 @@ export function ConcertDashboard() {
                             ) : null}
 
                             <div className="mt-5 flex flex-wrap gap-3">
-                              {event.ticketUrl ? (
+                              {event.ticketUrl && eventStatus !== "past" ? (
                                 <a
                                   href={event.ticketUrl}
                                   target="_blank"
@@ -919,19 +1097,19 @@ export function ConcertDashboard() {
                                 加入日曆
                                 <CalendarDays size={15} aria-hidden />
                               </a>
-                              {saleTime ? (
+                              {isFutureSale && eventStatus !== "sold-out" && eventStatus !== "past" ? (
                                 <button
                                   type="button"
                                   onClick={() => void toggleSaleAlert(event)}
-                                  disabled={!isFutureSale || notificationPermission === "unsupported"}
+                                  disabled={notificationPermission === "unsupported"}
                                   className={`inline-flex h-10 items-center gap-2 border px-4 text-sm font-bold transition ${
-                                    isFutureSale && notificationPermission !== "unsupported"
+                                    notificationPermission !== "unsupported"
                                       ? "border-black/15 text-[#26312d] hover:border-[#b93825]"
                                       : "cursor-not-allowed border-black/10 text-[#8a918e]"
                                   }`}
                                 >
                                   <Bell size={15} aria-hidden />
-                                  {isFutureSale ? (isAlertSet ? "已設開售通知" : "開售通知") : "已開售"}
+                                  {isAlertSet ? "已設開售通知" : "開售通知"}
                                 </button>
                               ) : null}
                               <a
@@ -1096,6 +1274,14 @@ export function ConcertDashboard() {
               </span>
             </div>
             <div className="mt-4 space-y-3">
+              <div className="border border-black/10 bg-[#f8faf6] p-3">
+                <p className="text-xs font-bold uppercase tracking-[0.12em] text-[#69736e]">
+                  上次背景同步
+                </p>
+                <p className="mt-1 text-sm font-semibold text-[#26312d]">
+                  {syncRunLabel ?? "尚未讀到同步紀錄"}
+                </p>
+              </div>
               {monitoredSources.map((source) => (
                 <a
                   key={source.id}
@@ -1145,7 +1331,7 @@ function Metric({
         {label}
       </div>
       <div className="mt-3 text-3xl font-semibold">{value}</div>
-      <div className="mt-1 text-sm text-[#d6e7e2]">{detail}</div>
+      <div className="mt-1 break-words text-sm leading-5 text-[#d6e7e2]">{detail}</div>
     </div>
   );
 }

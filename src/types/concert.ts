@@ -40,3 +40,16 @@ export type ConcertSource = {
   cadence: "daily" | "twice-weekly" | "weekly";
   priority: "high" | "medium";
 };
+
+export type SourceSyncStatus = "success" | "partial" | "failed";
+
+export type SyncMetadata = {
+  id?: string;
+  status: SourceSyncStatus;
+  lastRunAt: string;
+  lastUpdatedAt: string;
+  lastVerified: string;
+  eventCount: number;
+  failureCount: number;
+  sourceCount: number;
+};

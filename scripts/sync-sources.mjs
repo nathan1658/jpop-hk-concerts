@@ -1,5 +1,5 @@
 import { seedConcerts } from "../src/data/concerts.ts";
-import { writeConcerts } from "./lib/firestore-rest.mjs";
+import { writeConcerts, writeMetadata } from "./lib/firestore-rest.mjs";
 
 const args = new Set(process.argv.slice(2));
 const dryRun = args.has("--dry-run");
@@ -502,6 +502,20 @@ if (dryRun) {
   console.log("Dry run complete. Firestore was not changed.");
 } else {
   await writeConcerts({ events: syncedEvents });
+  const completedAt = new Date().toISOString();
+
+  await writeMetadata({
+    id: "source-sync",
+    metadata: {
+      status: failures.length ? "partial" : "success",
+      lastRunAt: completedAt,
+      lastUpdatedAt: completedAt,
+      lastVerified: verifiedDate,
+      eventCount: syncedEvents.length,
+      failureCount: failures.length,
+      sourceCount: seedConcerts.length,
+    },
+  });
 }
 
 process.exit(failures.length ? 1 : 0);

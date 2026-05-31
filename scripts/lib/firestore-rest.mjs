@@ -167,3 +167,28 @@ export const writeConcerts = async ({
     }
   }
 };
+
+export const writeMetadata = async ({
+  id,
+  metadata,
+  collection = "metadata",
+  projectId = process.env.GCLOUD_PROJECT || "jpop-hk-concerts",
+  token,
+}) => {
+  const accessToken = token ?? (await getAccessToken());
+  const baseUrl = firestoreBaseUrl(projectId);
+  const response = await fetch(`${baseUrl}/${collection}/${id}`, {
+    method: "PATCH",
+    headers: {
+      authorization: `Bearer ${accessToken}`,
+      "content-type": "application/json",
+    },
+    body: JSON.stringify(toFirestoreDocument(metadata)),
+  });
+
+  if (!response.ok) {
+    throw new Error(`Failed to write metadata ${id}: ${response.status} ${await response.text()}`);
+  }
+
+  console.log(`Synced metadata ${id}`);
+};
