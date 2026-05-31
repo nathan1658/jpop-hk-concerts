@@ -21,9 +21,8 @@ const accent = Bricolage_Grotesque({
 });
 
 export const metadata: Metadata = {
-  title: "日本音樂香港演出表 | J-Pop HK Concerts",
-  description:
-    "Interactive schedule for Japanese artists, VTubers, and virtual artists playing live concerts in Hong Kong.",
+  title: "日本音樂香港演出表",
+  description: "追蹤日本歌手、樂隊、VTuber 及虛擬歌手來港演出的香港中文演出表。",
 };
 
 export default function RootLayout({

@@ -117,10 +117,10 @@ export const subscribeToConcerts = (
 
 export const formatDateRange = (dates: string[]) => {
   if (dates.length === 0) {
-    return "Date TBC";
+    return "日期待定";
   }
 
-  const formatter = new Intl.DateTimeFormat("en-HK", {
+  const formatter = new Intl.DateTimeFormat("zh-HK", {
     timeZone: HONG_KONG_TIME_ZONE,
     month: "short",
     day: "numeric",
@@ -131,20 +131,20 @@ export const formatDateRange = (dates: string[]) => {
     return formatter.format(getEventTime(dates[0]));
   }
 
-  return `${formatter.format(getEventTime(dates[0]))} - ${formatter.format(
+  return `${formatter.format(getEventTime(dates[0]))} 至 ${formatter.format(
     getEventTime(dates[dates.length - 1]),
   )}`;
 };
 
 export const formatMonthKey = (date: string) =>
-  new Intl.DateTimeFormat("en-HK", {
+  new Intl.DateTimeFormat("zh-HK", {
     timeZone: HONG_KONG_TIME_ZONE,
     month: "long",
     year: "numeric",
   }).format(getEventTime(date));
 
 export const formatSaleDateTime = (date: string) =>
-  new Intl.DateTimeFormat("en-HK", {
+  new Intl.DateTimeFormat("zh-HK", {
     timeZone: HONG_KONG_TIME_ZONE,
     month: "short",
     day: "numeric",

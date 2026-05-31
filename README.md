@@ -32,6 +32,8 @@ Each document should match `ConcertEvent` in `src/types/concert.ts`:
   presaleStart: "2026-04-20T15:00:00+08:00",
   ticketingAgent: "Cityline",
   price: "Standing HK$1,099; seated HK$1,099 / $899 / $699",
+  imageUrl: "https://...",
+  imageAlt: "LiSA 香港演出主視覺",
   sourceUrl: "https://...",
   sourceName: "Live Nation HK",
   sourceConfidence: "promoter",
@@ -99,8 +101,8 @@ Current production behavior is intentionally split into two parts:
 4. `npm run check:sources` verifies source availability.
 5. `scripts/sync-sources.mjs` fetches every curated source URL, parses verified
    fields, and writes the merged result to Firestore.
-6. `.github/workflows/sync-sources.yml` runs the sync daily at 06:00 HKT and can
-   also be started manually from GitHub Actions.
+6. `.github/workflows/sync-sources.yml` runs the sync every 4 hours and can also
+   be started manually from GitHub Actions.
 
 The sync job is intentionally conservative. It updates events already present in
 `src/data/concerts.ts`; it does not publish random discovery-page matches as new
@@ -125,10 +127,11 @@ Add auth and a server-side ingestion job before accepting user-generated data.
 
 ## Ticket Alerts
 
-Sale alerts use the browser Notification API and localStorage. They work for
-events with a future `generalSaleStart` while the page is open and notification
-permission is granted. True background push across devices should use Firebase
-Cloud Messaging plus a server-side scheduler.
+Sale alerts and new-record alerts use the browser Notification API and
+localStorage. Sale alerts work for events with a future `generalSaleStart`;
+new-record alerts can be configured for all new events or artist keywords. True
+background push across devices should use Firebase Cloud Messaging plus a
+server-side scheduler.
 
 The seed dataset is source-backed, not scraped live. As of 2026-05-31 HKT, all
 verified public sale windows currently in the seed data have already opened, so

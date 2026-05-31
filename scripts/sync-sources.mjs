@@ -50,9 +50,12 @@ const decodeHtml = (value) =>
     .replaceAll("&nbsp;", " ")
     .replaceAll("&amp;", "&")
     .replaceAll("&quot;", '"')
+    .replaceAll("&apos;", "'")
     .replaceAll("&#39;", "'")
     .replaceAll("&lt;", "<")
-    .replaceAll("&gt;", ">");
+    .replaceAll("&gt;", ">")
+    .replace(/&#(\d+);/g, (_, code) => String.fromCodePoint(Number(code)))
+    .replace(/&#x([0-9a-f]+);/gi, (_, code) => String.fromCodePoint(Number.parseInt(code, 16)));
 
 const textFromHtml = (html) =>
   decodeHtml(
@@ -70,6 +73,141 @@ const textFromHtml = (html) =>
     .join("\n");
 
 const normalizeText = (value) => value.replace(/\s+/g, " ").trim();
+
+const fetchPage = async (url) => {
+  const response = await fetch(url, {
+    redirect: "follow",
+    headers: {
+      "user-agent": userAgent,
+    },
+  });
+
+  if (!response.ok) {
+    throw new Error(`${response.status} ${response.statusText}`);
+  }
+
+  const html = await response.text();
+  return {
+    html,
+    text: textFromHtml(html),
+  };
+};
+
+const extractAttributeValues = (html, patterns) =>
+  patterns.flatMap((pattern) => [...html.matchAll(pattern)].map((match) => match[1]));
+
+const normalizeImageUrl = (rawUrl, pageUrl) => {
+  if (!rawUrl) {
+    return "";
+  }
+
+  try {
+    return new URL(decodeHtml(rawUrl).trim(), pageUrl).toString();
+  } catch {
+    return "";
+  }
+};
+
+const extractImageUrl = (html, pageUrl) => {
+  const attributeCandidates = extractAttributeValues(html, [
+    /<meta[^>]+property=["']og:image["'][^>]+content=["']([^"']+)["']/gi,
+    /<meta[^>]+content=["']([^"']+)["'][^>]+property=["']og:image["']/gi,
+    /<meta[^>]+name=["']twitter:image["'][^>]+content=["']([^"']+)["']/gi,
+    /<meta[^>]+content=["']([^"']+)["'][^>]+name=["']twitter:image["']/gi,
+    /<img[^>]+src=["']([^"']+)["']/gi,
+  ]);
+  const urlCandidates = html.match(/https?:[^"'<>\\\s)]+(?:jpg|jpeg|png|webp)(?:\?[^"'<>\\\s)]*)?/gi) ?? [];
+  const candidates = [...attributeCandidates, ...urlCandidates]
+    .map((candidate) => normalizeImageUrl(candidate, pageUrl))
+    .filter(Boolean)
+    .filter((candidate) => !/ln-logo|facebook|instagram|youtube|wechat|weibo|logo|icon/i.test(candidate));
+  const preferredNeedles = [
+    "AsiaWorldExpoLocal",
+    "upload_images",
+    "organization_resource_files",
+    "dynamicmedia.livenationinternational.com",
+  ];
+
+  return candidates.find((candidate) => preferredNeedles.some((needle) => candidate.includes(needle))) ?? candidates[0];
+};
+
+const localizeVenue = (venue) => {
+  if (!venue) {
+    return undefined;
+  }
+
+  if (/^(hong kong|香港)$/i.test(venue)) {
+    return undefined;
+  }
+
+  if (/runway\s*11|hall\s*11|11號展館/i.test(venue)) {
+    return "亞洲國際博覽館 Runway 11（11號展館）";
+  }
+
+  if (/asiaworld-arena|hall\s*1\b|1號展館/i.test(venue)) {
+    return "亞洲國際博覽館 AsiaWorld-Arena（1號展館）";
+  }
+
+  if (/hall\s*10\b|10號展館/i.test(venue)) {
+    return "亞洲國際博覽館 10號展館";
+  }
+
+  if (/hall\s*5\b|5號展館/i.test(venue)) {
+    return "亞洲國際博覽館 5號展館";
+  }
+
+  if (/tides/i.test(venue)) {
+    return "TIDES";
+  }
+
+  return venue;
+};
+
+const localizePrice = (price) =>
+  price
+    .replace(/All Standing/gi, "全場企位")
+    .replace(/All seated/gi, "全場座位")
+    .replace(/Standing/gi, "企位")
+    .replace(/seated/gi, "座位")
+    .replace(/restricted view/gi, "視線受阻")
+    .replace(/general admission/gi, "普通企位")
+    .replace(/priority entry/gi, "優先入場")
+    .replace(/wheelchair/gi, "輪椅席")
+    .replace(/General tickets from/gi, "普通門票")
+    .replace(/VIP tickets from/gi, "VIP 門票")
+    .replace(/\bfrom\s+/gi, "")
+    .replace(/\bHKD\s*\$/gi, "HK$")
+    .replace(/\s*;\s*/g, "；")
+    .trim();
+
+const isSpecificSoldOutLine = (line) => {
+  if (/^(sold out|售罄|已售罄|售完|已售完)$/i.test(line)) {
+    return true;
+  }
+
+  if (
+    /(門票|票券|ticket|tickets).{0,24}(售罄|售完|sold out|no longer available|not available)|沒有可以購買|暫無票券|no tickets available|currently sold out/i.test(
+      line,
+    )
+  ) {
+    return true;
+  }
+
+  if (/once|when|until|if|如有|若有|售完即止|售罄即止|will be available|reserved/i.test(line)) {
+    return false;
+  }
+
+  return /(sold out|售罄|售完|已滿)/i.test(line) && line.length <= 120;
+};
+
+const parseTicketStatus = (text) =>
+  text
+    .split("\n")
+    .map(normalizeText)
+    .filter(Boolean)
+    .some(isSpecificSoldOutLine)
+    ? "sold-out"
+    : undefined;
 
 const extractHeading = (html, fallbackText) => {
   const match = html.match(/<h1[^>]*>([\s\S]*?)<\/h1>/i);
@@ -205,37 +343,27 @@ const parsePrice = (text) => {
     return undefined;
   }
 
-  return section
+  return localizePrice(
+    section
     .replace(/^(Ticket Prices|TICKET PRICES|Ticket Price|門票價格)\s*/i, "")
     .replace(/\bHKD\s*\$/gi, "HK$")
     .replace(/\s*\/\s*/g, " / ")
-    .trim();
+      .trim(),
+  );
 };
 
 const parseVenue = (text) => {
   const location = text.match(/Location\s+([^\n]+)/i);
   if (location) {
-    return normalizeText(location[1]);
+    return localizeVenue(normalizeText(location[1]));
   }
 
   const venue = text.match(/Venue\s+([^\n]*AsiaWorld[^\n]*)/i);
-  return venue ? normalizeText(venue[1]) : undefined;
+  return venue ? localizeVenue(normalizeText(venue[1])) : undefined;
 };
 
 const scrapeEvent = async (event) => {
-  const response = await fetch(event.sourceUrl, {
-    redirect: "follow",
-    headers: {
-      "user-agent": userAgent,
-    },
-  });
-
-  if (!response.ok) {
-    throw new Error(`${response.status} ${response.statusText}`);
-  }
-
-  const html = await response.text();
-  const text = textFromHtml(html);
+  const { html, text } = await fetchPage(event.sourceUrl);
   const heading = extractHeading(html, text);
   const expectedNeedle = normalizeText(event.artist).toLowerCase();
   const eventStart = text.indexOf(heading);
@@ -246,6 +374,23 @@ const scrapeEvent = async (event) => {
 
   if (!text.toLowerCase().includes(expectedNeedle)) {
     throw new Error(`source page did not contain expected artist "${event.artist}"`);
+  }
+
+  let ticketPageText = "";
+  let ticketPageImageUrl = "";
+
+  if (event.ticketUrl && event.ticketUrl !== event.sourceUrl) {
+    try {
+      const ticketPage = await fetchPage(event.ticketUrl);
+      ticketPageText = ticketPage.text;
+      ticketPageImageUrl = extractImageUrl(ticketPage.html, event.ticketUrl) ?? "";
+    } catch (error) {
+      console.warn(
+        `Ticket status page could not be parsed for ${event.id}: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+      );
+    }
   }
 
   return {
@@ -259,6 +404,8 @@ const scrapeEvent = async (event) => {
     price: parsePrice(eventScope),
     generalSaleStart: parseSaleStart(eventScope),
     ticketingAgent: parseTicketingAgent(eventScope, event.ticketingAgent),
+    status: parseTicketStatus(`${ticketPageText}\n${eventScope}`),
+    imageUrl: extractImageUrl(html, event.sourceUrl) ?? ticketPageImageUrl,
   };
 };
 
@@ -300,6 +447,15 @@ const mergeScrape = (event, scraped, verifiedDate) => {
     merged.generalSaleStart = scraped.generalSaleStart;
   }
 
+  if (scraped.status === "sold-out") {
+    merged.status = "sold-out";
+  }
+
+  if (scraped.imageUrl) {
+    merged.imageUrl = scraped.imageUrl;
+    merged.imageAlt = event.imageAlt ?? `${event.artist} 香港演出主視覺`;
+  }
+
   for (const key of ["doors", "venue", "price", "ticketingAgent"]) {
     if (Array.isArray(scraped[key]) ? scraped[key].length > 0 : scraped[key]) {
       merged[key] = scraped[key];
@@ -330,6 +486,7 @@ for (const event of seedConcerts) {
 console.table(
   syncedEvents.map((event) => ({
     id: event.id,
+    status: event.status,
     dates: event.dates.join(", "),
     sale: event.generalSaleStart ?? "TBA",
     verified: event.lastVerified,

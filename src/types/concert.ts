@@ -21,6 +21,8 @@ export type ConcertEvent = {
   generalSaleStart?: string;
   ticketingAgent?: string;
   ticketUrl?: string;
+  imageUrl?: string;
+  imageAlt?: string;
   sourceUrl: string;
   sourceName: string;
   sourceConfidence: SourceConfidence;

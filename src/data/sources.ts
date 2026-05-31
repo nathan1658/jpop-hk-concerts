@@ -3,7 +3,7 @@ import type { ConcertSource } from "@/types/concert";
 export const monitoredSources: ConcertSource[] = [
   {
     id: "asiaworld-expo",
-    name: "AsiaWorld-Expo upcoming events",
+    name: "亞洲國際博覽館最新活動",
     url: "https://www.asiaworld-expo.com/en-us/whats-on/upcoming-events/",
     kind: "venue",
     authority: "canonical",
@@ -12,7 +12,7 @@ export const monitoredSources: ConcertSource[] = [
   },
   {
     id: "kai-tak-sports-park",
-    name: "Kai Tak Sports Park events",
+    name: "啟德體育園活動",
     url: "https://www.kaitaksportspark.com.hk/en/events",
     kind: "venue",
     authority: "canonical",
@@ -21,7 +21,7 @@ export const monitoredSources: ConcertSource[] = [
   },
   {
     id: "live-nation-hk",
-    name: "Live Nation Hong Kong",
+    name: "Live Nation 香港",
     url: "https://www.livenation.hk/",
     kind: "promoter",
     authority: "canonical",
@@ -30,7 +30,7 @@ export const monitoredSources: ConcertSource[] = [
   },
   {
     id: "cityline",
-    name: "Cityline event search",
+    name: "Cityline 購票搜尋",
     url: "https://www.cityline.com/",
     kind: "ticketing",
     authority: "confirmation",
@@ -39,7 +39,7 @@ export const monitoredSources: ConcertSource[] = [
   },
   {
     id: "kktix-hk",
-    name: "KKTIX Hong Kong events",
+    name: "KKTIX 香港活動",
     url: "https://kktix.com/",
     kind: "ticketing",
     authority: "confirmation",
@@ -48,7 +48,7 @@ export const monitoredSources: ConcertSource[] = [
   },
   {
     id: "asiaworld-kktix",
-    name: "AsiaWorld-Expo KKTIX events",
+    name: "亞洲國際博覽館 KKTIX 活動",
     url: "https://asiaworld-expo.kktix.cc/",
     kind: "ticketing",
     authority: "confirmation",
@@ -57,7 +57,7 @@ export const monitoredSources: ConcertSource[] = [
   },
   {
     id: "neon-lit",
-    name: "Neon Lit ticketing",
+    name: "Neon Lit 票務",
     url: "https://www.tickets.neon-lit.com/zh-hant/",
     kind: "ticketing",
     authority: "confirmation",
@@ -66,7 +66,7 @@ export const monitoredSources: ConcertSource[] = [
   },
   {
     id: "klook-events",
-    name: "Klook events",
+    name: "Klook 活動",
     url: "https://www.klook.com/en-HK/event/",
     kind: "ticketing",
     authority: "confirmation",
@@ -75,7 +75,7 @@ export const monitoredSources: ConcertSource[] = [
   },
   {
     id: "ticketflap",
-    name: "Ticketflap",
+    name: "Ticketflap 票務",
     url: "https://www.ticketflap.com/",
     kind: "ticketing",
     authority: "confirmation",
@@ -84,7 +84,7 @@ export const monitoredSources: ConcertSource[] = [
   },
   {
     id: "tides",
-    name: "TIDES event listings",
+    name: "TIDES 活動列表",
     url: "https://www.tides.hk/all-events",
     kind: "venue",
     authority: "confirmation",
@@ -93,7 +93,7 @@ export const monitoredSources: ConcertSource[] = [
   },
   {
     id: "hkticketing",
-    name: "HK Ticketing",
+    name: "HK Ticketing 票務",
     url: "https://premier.hkticketing.com/",
     kind: "ticketing",
     authority: "confirmation",
@@ -102,7 +102,7 @@ export const monitoredSources: ConcertSource[] = [
   },
   {
     id: "macpherson-stadium",
-    name: "MacPherson Stadium",
+    name: "麥花臣場館",
     url: "https://www.macstadiumhkpa.com/en",
     kind: "venue",
     authority: "confirmation",
@@ -111,7 +111,7 @@ export const monitoredSources: ConcertSource[] = [
   },
   {
     id: "timable",
-    name: "Timable Hong Kong events",
+    name: "Timable 香港活動",
     url: "https://timable.com/en/hong-kong",
     kind: "discovery",
     authority: "discovery",

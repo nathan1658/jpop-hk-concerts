@@ -3,8 +3,8 @@ name: Sync concert sources
 on:
   workflow_dispatch:
   schedule:
-    # 22:00 UTC = 06:00 Hong Kong time.
-    - cron: "0 22 * * *"
+    # Every 4 hours. In Hong Kong time: 00:00, 04:00, 08:00, 12:00, 16:00, 20:00.
+    - cron: "0 */4 * * *"
 
 permissions:
   contents: read
