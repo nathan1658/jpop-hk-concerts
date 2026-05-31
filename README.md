@@ -72,6 +72,8 @@ npm run dev
 npm run lint
 npm run build
 npm run check:sources
+npm run sync:sources:dry
+npm run sync:sources
 npm run deploy
 ```
 
@@ -95,20 +97,28 @@ Current production behavior is intentionally split into two parts:
 2. If Firestore data changes, the live site updates without redeploying.
 3. Source registry lives in `src/data/sources.ts`.
 4. `npm run check:sources` verifies source availability.
-5. `npm run seed:firestore` writes the curated dataset to Firestore manually.
+5. `scripts/sync-sources.mjs` fetches every curated source URL, parses verified
+   fields, and writes the merged result to Firestore.
+6. `.github/workflows/sync-sources.yml` runs the sync daily at 06:00 HKT and can
+   also be started manually from GitHub Actions.
 
-There is no scheduled ingestion job yet. The next backend step is a daily HKT
-cron job that runs source adapters, verifies event fields, and writes safe
-changes into Firestore.
+The sync job is intentionally conservative. It updates events already present in
+`src/data/concerts.ts`; it does not publish random discovery-page matches as new
+concerts yet. New sources should first be added to the curated dataset, then the
+job keeps them fresh.
 
-Recommended cron architecture for the next step:
+GitHub Actions needs one repository secret:
 
-1. GitHub Actions schedule runs daily, for example 06:00 HKT.
-2. `scripts/sync-sources.mjs` fetches canonical and ticketing sources.
-3. Source adapters normalize artist, venue, dates, sale start, price, and URLs.
-4. The sync only upgrades data from trusted sources and never downgrades
-   verified fields with weaker discovery data.
-5. Firestore receives creates/updates, while past events stay archived.
+```text
+FIREBASE_SERVICE_ACCOUNT
+```
+
+Set it to a Firebase service account JSON value with Firestore write permission.
+Local runs can use either that env var, `FIRESTORE_ACCESS_TOKEN`, or the current
+`gcloud auth print-access-token` session.
+
+The public GitHub repo is configured with a dedicated `github-sync` service
+account secret for the scheduled Firestore sync.
 
 Do not enable anonymous public writes just to collect alerts or user submissions.
 Add auth and a server-side ingestion job before accepting user-generated data.

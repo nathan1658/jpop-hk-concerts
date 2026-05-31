@@ -10,6 +10,8 @@
     "lint": "eslint",
     "check:sources": "node --experimental-strip-types scripts/check-sources.mjs",
     "seed:firestore": "node --experimental-strip-types scripts/seed-firestore.mjs",
+    "sync:sources": "node --experimental-strip-types scripts/sync-sources.mjs",
+    "sync:sources:dry": "node --experimental-strip-types scripts/sync-sources.mjs --dry-run",
     "deploy": "npm run build && npx firebase-tools@latest deploy --project jpop-hk-concerts --only hosting,firestore:rules"
   },
   "dependencies": {

@@ -23,8 +23,32 @@ export const seedConcerts: ConcertEvent[] = [
     sourceName: "AsiaWorld-Expo",
     sourceConfidence: "venue",
     dataQuality: "verified",
-    lastVerified: "2026-05-30",
+    lastVerified: "2026-05-31",
     notes: "Official venue page confirms dates, venue, ticket tiers, and KKTIX public sale.",
+  },
+  {
+    id: "tuki-first-asia-tour-hk-2026",
+    artist: "tuki.",
+    tour: "tuki. 1st ASIA TOUR 2026 in HONG KONG",
+    dates: ["2026-05-09", "2026-05-10"],
+    doors: "19:00",
+    venue: "Runway 11 (Hall 11), AsiaWorld-Expo",
+    district: "Chek Lap Kok",
+    city: "Hong Kong",
+    genres: ["J-Pop", "Singer-songwriter"],
+    status: "on-sale",
+    price: "All seated HK$1,288 / $1,088 / $888 / $688; wheelchair HK$1,088",
+    generalSaleStart: "2025-12-11T10:00:00+08:00",
+    ticketingAgent: "BOOKYAY",
+    ticketUrl:
+      "https://www.asiaworld-expo.com/en-us/whats-on/upcoming-events/events/tuki-live-in-hong-kong-2026/",
+    sourceUrl:
+      "https://www.asiaworld-expo.com/en-us/whats-on/upcoming-events/events/tuki-live-in-hong-kong-2026/",
+    sourceName: "AsiaWorld-Expo",
+    sourceConfidence: "venue",
+    dataQuality: "verified",
+    lastVerified: "2026-05-31",
+    notes: "Archived Japanese singer-songwriter event found during the manual source sweep.",
   },
   {
     id: "zutomayo-zombie-crab-labo-hk-2026",
@@ -48,7 +72,7 @@ export const seedConcerts: ConcertEvent[] = [
     sourceName: "AsiaWorld-Expo",
     sourceConfidence: "venue",
     dataQuality: "verified",
-    lastVerified: "2026-05-30",
+    lastVerified: "2026-05-31",
   },
   {
     id: "kaf-inner-echoes-hk-2026",
@@ -96,7 +120,7 @@ export const seedConcerts: ConcertEvent[] = [
     sourceName: "Live Nation HK",
     sourceConfidence: "promoter",
     dataQuality: "verified",
-    lastVerified: "2026-05-30",
+    lastVerified: "2026-05-31",
   },
   {
     id: "lisa-ono-hk-2026",
@@ -121,7 +145,7 @@ export const seedConcerts: ConcertEvent[] = [
     sourceName: "Live Nation HK",
     sourceConfidence: "promoter",
     dataQuality: "verified",
-    lastVerified: "2026-05-30",
+    lastVerified: "2026-05-31",
     notes: "Two-night event at TIDES, confirmed by Live Nation and TIDES listings.",
   },
   {
@@ -138,14 +162,13 @@ export const seedConcerts: ConcertEvent[] = [
     price: "All seated HK$1,480 / $980",
     generalSaleStart: "2026-05-08T11:00:00+08:00",
     ticketingAgent: "KKTIX",
-    ticketUrl:
-      "https://www.asiaworld-expo.com/en-us/whats-on/upcoming-events/events/w-inds-live-in-hong-kong-2026/",
+    ticketUrl: "https://asiaworld-expo.kktix.cc/events/w-inds-hk-2026?locale=en",
     sourceUrl:
       "https://www.asiaworld-expo.com/en-us/whats-on/upcoming-events/events/w-inds-live-in-hong-kong-2026/",
     sourceName: "AsiaWorld-Expo",
     sourceConfidence: "venue",
     dataQuality: "verified",
-    lastVerified: "2026-05-30",
+    lastVerified: "2026-05-31",
   },
   {
     id: "xg-the-core-hk-2026",
@@ -168,7 +191,7 @@ export const seedConcerts: ConcertEvent[] = [
     sourceName: "AsiaWorld-Expo",
     sourceConfidence: "venue",
     dataQuality: "verified",
-    lastVerified: "2026-05-30",
+    lastVerified: "2026-05-31",
     notes: "Japanese group included under the project scope decision to track Japanese artists and groups.",
   },
   {
@@ -193,7 +216,7 @@ export const seedConcerts: ConcertEvent[] = [
     sourceName: "AsiaWorld-Expo",
     sourceConfidence: "venue",
     dataQuality: "verified",
-    lastVerified: "2026-05-30",
+    lastVerified: "2026-05-31",
   },
   {
     id: "vaundy-horo-hk-2026",
@@ -217,7 +240,7 @@ export const seedConcerts: ConcertEvent[] = [
     sourceName: "AsiaWorld-Expo",
     sourceConfidence: "venue",
     dataQuality: "verified",
-    lastVerified: "2026-05-30",
+    lastVerified: "2026-05-31",
   },
   {
     id: "joji-solaris-hk-2026",
@@ -240,7 +263,7 @@ export const seedConcerts: ConcertEvent[] = [
     sourceName: "AsiaWorld-Expo",
     sourceConfidence: "venue",
     dataQuality: "verified",
-    lastVerified: "2026-05-30",
+    lastVerified: "2026-05-31",
     notes: "Japan-born singer-songwriter included by scope decision; revisit if the product narrows to Japan-based acts only.",
   },
 ];
