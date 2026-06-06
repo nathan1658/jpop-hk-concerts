@@ -41,6 +41,20 @@ export type ConcertSource = {
   priority: "high" | "medium";
 };
 
+export type SyncWarningType = "source-check" | "event-scrape" | "sync-report";
+
+export type SyncWarning = {
+  type: SyncWarningType;
+  id: string;
+  name: string;
+  url?: string;
+  sourceKind?: ConcertSource["kind"] | "event";
+  authority?: ConcertSource["authority"] | SourceConfidence;
+  status?: string;
+  error: string;
+  checkedAt?: string;
+};
+
 export type SourceSyncStatus = "success" | "partial" | "failed";
 
 export type SyncMetadata = {
@@ -51,5 +65,9 @@ export type SyncMetadata = {
   lastVerified: string;
   eventCount: number;
   failureCount: number;
+  eventFailureCount: number;
   sourceCount: number;
+  sourceCheckCount: number;
+  sourceCheckLastRunAt: string;
+  sourceWarnings: SyncWarning[];
 };

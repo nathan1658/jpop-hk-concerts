@@ -2,6 +2,7 @@
 
 import Image from "next/image";
 import {
+  AlertTriangle,
   Bell,
   CalendarDays,
   CheckCircle2,
@@ -154,6 +155,12 @@ const notificationPermissionLabel: Record<NotificationPermission | "unsupported"
   granted: "已允許",
   unsupported: "此瀏覽器不支援",
 };
+
+const syncWarningTypeLabel = {
+  "source-check": "來源檢查",
+  "event-scrape": "演出更新",
+  "sync-report": "同步報告",
+} as const;
 
 const formatGenre = (genre: string) => genreLabel[genre] ?? genre;
 
@@ -679,6 +686,13 @@ export function ConcertDashboard() {
     bannerOptions.find((option) => option.id === bannerId) ??
     bannerOptions.find((option) => option.id === defaultBannerId) ??
     bannerOptions[0];
+  const sourceWarnings = syncMetadata?.sourceWarnings ?? [];
+  const warningCount = sourceWarnings.length || syncMetadata?.failureCount || 0;
+  const sourceWarningById = new Map(
+    sourceWarnings
+      .filter((warning) => warning.type === "source-check")
+      .map((warning) => [warning.id, warning]),
+  );
   const syncRunLabel = syncMetadata?.lastRunAt
     ? formatHongKongDateTime(syncMetadata.lastRunAt)
     : null;
@@ -689,7 +703,9 @@ export function ConcertDashboard() {
         ? "失敗"
         : "成功";
   const syncMetricDetail = syncRunLabel
-    ? `背景同步：${syncRunLabel}（${syncStatusLabel}）`
+    ? `背景同步：${syncRunLabel}（${syncStatusLabel}${
+        warningCount ? `，${warningCount} 個警告` : ""
+      }）`
     : "來源同步日期";
   const verifiedMetricValue = syncMetadata?.lastVerified || lastVerified || "-";
   const dataSourceLabel = dataSource === "firestore" ? "即時資料" : "內置備份";
@@ -1282,29 +1298,80 @@ export function ConcertDashboard() {
                   {syncRunLabel ?? "尚未讀到同步紀錄"}
                 </p>
               </div>
-              {monitoredSources.map((source) => (
-                <a
-                  key={source.id}
-                  href={source.url}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="group block border border-black/10 p-3 transition hover:border-[#b93825]"
-                >
-                  <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <p className="font-semibold">{source.name}</p>
-                      <p className="mt-1 text-xs font-medium uppercase tracking-[0.12em] text-[#69736e]">
-                        {cadenceLabel[source.cadence]} / {priorityLabel[source.priority]}
-                      </p>
-                    </div>
-                    <ExternalLink
-                      size={16}
-                      className="mt-1 shrink-0 text-[#7a8580] group-hover:text-[#b93825]"
-                      aria-hidden
-                    />
+              {sourceWarnings.length ? (
+                <div className="border border-amber-300 bg-amber-50 p-3 text-amber-950">
+                  <div className="flex items-center gap-2 text-sm font-bold">
+                    <AlertTriangle size={16} aria-hidden />
+                    部分來源暫時未能更新
                   </div>
-                </a>
-              ))}
+                  <p className="mt-2 text-sm leading-6">
+                    已保留現有資料；其他可讀來源仍然完成同步。
+                  </p>
+                  <div className="mt-3 space-y-2">
+                    {sourceWarnings.slice(0, 4).map((warning, index) => (
+                      <div
+                        key={`${warning.type}-${warning.id}-${index}`}
+                        className="border border-amber-200 bg-white/70 p-2"
+                      >
+                        <div className="flex flex-wrap items-center justify-between gap-2 text-sm">
+                          <span className="font-semibold">{warning.name}</span>
+                          <span className="text-xs font-bold uppercase tracking-[0.12em] text-amber-800">
+                            {syncWarningTypeLabel[warning.type]}
+                          </span>
+                        </div>
+                        <p className="mt-1 text-xs font-semibold uppercase tracking-[0.1em] text-amber-800">
+                          {[warning.status, warning.authority].filter(Boolean).join(" / ") ||
+                            "來源未能讀取"}
+                        </p>
+                        <p className="mt-1 break-words text-xs leading-5 text-amber-900">
+                          {warning.error}
+                        </p>
+                      </div>
+                    ))}
+                    {sourceWarnings.length > 4 ? (
+                      <p className="text-xs font-semibold text-amber-900">
+                        另有 {sourceWarnings.length - 4} 個來源警告。
+                      </p>
+                    ) : null}
+                  </div>
+                </div>
+              ) : null}
+              {monitoredSources.map((source) => {
+                const sourceWarning = sourceWarningById.get(source.id);
+
+                return (
+                  <a
+                    key={source.id}
+                    href={source.url}
+                    target="_blank"
+                    rel="noreferrer"
+                    className={`group block border p-3 transition ${
+                      sourceWarning
+                        ? "border-amber-300 bg-amber-50 hover:border-amber-500"
+                        : "border-black/10 hover:border-[#b93825]"
+                    }`}
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <p className="font-semibold">{source.name}</p>
+                        <p className="mt-1 text-xs font-medium uppercase tracking-[0.12em] text-[#69736e]">
+                          {cadenceLabel[source.cadence]} / {priorityLabel[source.priority]}
+                        </p>
+                        {sourceWarning ? (
+                          <p className="mt-2 text-xs font-semibold leading-5 text-amber-900">
+                            同步警告：{sourceWarning.status ?? sourceWarning.error}
+                          </p>
+                        ) : null}
+                      </div>
+                      <ExternalLink
+                        size={16}
+                        className="mt-1 shrink-0 text-[#7a8580] group-hover:text-[#b93825]"
+                        aria-hidden
+                      />
+                    </div>
+                  </a>
+                );
+              })}
             </div>
           </section>
         </aside>

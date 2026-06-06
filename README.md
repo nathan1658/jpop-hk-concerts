@@ -60,7 +60,10 @@ Use sources in this order:
 2. Ticketing confirmation: Cityline, KKTIX, AsiaWorld-Expo KKTIX, Neon Lit, Klook, Ticketflap, TIDES, HK Ticketing.
 3. Discovery only: Timable or other event roundups. These can suggest leads, but should not publish a final event row unless confirmed by tier 1 or tier 2.
 
-`npm run check:sources` treats canonical source failures as hard failures.
+`npm run check:sources` reports unavailable sources as warnings by default so
+scheduled updates can keep using the sources that are still reachable. Pass
+`-- --strict` when you want canonical source failures to exit non-zero during a
+manual check.
 Some ticketing sites, currently KKTIX and Klook, return 403 to a plain fetch;
 keep them in the registry, but use a dedicated adapter or manual confirmation
 before treating them as automated ingestion sources.
@@ -98,7 +101,8 @@ Current production behavior is intentionally split into two parts:
 1. The frontend reads `concerts` from Firestore in realtime.
 2. If Firestore data changes, the live site updates without redeploying.
 3. Source registry lives in `src/data/sources.ts`.
-4. `npm run check:sources` verifies source availability.
+4. `npm run check:sources` verifies source availability and can write a warning
+   report for the sync step.
 5. `scripts/sync-sources.mjs` fetches every curated source URL, parses verified
    fields, and writes the merged result to Firestore.
 6. `.github/workflows/sync-sources.yml` runs the sync every 4 hours and can also
@@ -107,7 +111,9 @@ Current production behavior is intentionally split into two parts:
 The sync job is intentionally conservative. It updates events already present in
 `src/data/concerts.ts`; it does not publish random discovery-page matches as new
 concerts yet. New sources should first be added to the curated dataset, then the
-job keeps them fresh.
+job keeps them fresh. If one source fails, the job keeps the existing curated row,
+writes the available updates, and stores source warnings in the `source-sync`
+metadata document for the frontend sidebar.
 
 GitHub Actions needs one repository secret:
 

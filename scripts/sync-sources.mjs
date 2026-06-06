@@ -1,8 +1,25 @@
+import { readFile } from "node:fs/promises";
+
 import { seedConcerts } from "../src/data/concerts.ts";
 import { writeConcerts, writeMetadata } from "./lib/firestore-rest.mjs";
 
-const args = new Set(process.argv.slice(2));
+const rawArgs = process.argv.slice(2);
+const args = new Set(rawArgs);
 const dryRun = args.has("--dry-run");
+
+const getArgValue = (name) => {
+  const prefix = `--${name}=`;
+  const inline = rawArgs.find((arg) => arg.startsWith(prefix));
+
+  if (inline) {
+    return inline.slice(prefix.length);
+  }
+
+  const index = rawArgs.indexOf(`--${name}`);
+  return index === -1 ? undefined : rawArgs[index + 1];
+};
+
+const sourceCheckReportPath = getArgValue("source-check-report");
 
 const userAgent = "jpop-hk-concerts-sync/0.1 (+https://github.com/nathan1658/jpop-hk-concerts)";
 const monthNumbers = new Map(
@@ -465,9 +482,70 @@ const mergeScrape = (event, scraped, verifiedDate) => {
   return merged;
 };
 
+const stringValue = (value, fallback = "") =>
+  typeof value === "string" && value.trim() ? value.trim() : fallback;
+
+const formatSourceStatus = (check) =>
+  check.status === undefined || check.status === null ? "unknown" : String(check.status);
+
+const readSourceCheckReport = async (reportPath) => {
+  if (!reportPath) {
+    return {
+      checkedAt: "",
+      sourceCount: 0,
+      warnings: [],
+    };
+  }
+
+  try {
+    const report = JSON.parse(await readFile(reportPath, "utf8"));
+    const checks = Array.isArray(report.checks) ? report.checks : [];
+
+    return {
+      checkedAt: stringValue(report.checkedAt),
+      sourceCount:
+        typeof report.sourceCount === "number" && Number.isFinite(report.sourceCount)
+          ? report.sourceCount
+          : checks.length,
+      warnings: checks
+        .filter((check) => check && check.ok !== true && check.authority === "canonical")
+        .map((check) => ({
+          type: "source-check",
+          id: stringValue(check.id, "unknown-source"),
+          name: stringValue(check.name, stringValue(check.id, "Unknown source")),
+          url: stringValue(check.url),
+          sourceKind: stringValue(check.kind),
+          authority: stringValue(check.authority),
+          status: formatSourceStatus(check),
+          error: stringValue(check.error, `HTTP/status ${formatSourceStatus(check)}`),
+          checkedAt: stringValue(report.checkedAt),
+        })),
+    };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    console.warn(`Source check report could not be read: ${message}`);
+
+    return {
+      checkedAt: "",
+      sourceCount: 0,
+      warnings: [
+        {
+          type: "sync-report",
+          id: "source-check-report",
+          name: "Source check report",
+          url: "",
+          status: "unavailable",
+          error: message,
+        },
+      ],
+    };
+  }
+};
+
 const verifiedDate = todayHongKong();
 const syncedEvents = [];
 const failures = [];
+const sourceCheckReport = await readSourceCheckReport(sourceCheckReportPath);
 
 for (const event of seedConcerts) {
   try {
@@ -498,6 +576,36 @@ if (failures.length) {
   console.table(failures);
 }
 
+const scrapeWarnings = failures.map((failure) => {
+  const event = seedConcerts.find((item) => item.id === failure.id);
+
+  return {
+    type: "event-scrape",
+    id: failure.id,
+    name: event?.artist ?? failure.id,
+    url: failure.sourceUrl,
+    sourceKind: "event",
+    authority: event?.sourceConfidence ?? "",
+    status: "parse-error",
+    error: failure.error,
+    checkedAt: new Date().toISOString(),
+  };
+});
+const sourceWarnings = [...sourceCheckReport.warnings, ...scrapeWarnings];
+
+if (sourceWarnings.length) {
+  console.warn("Sync completed with source warnings. Firestore will keep available data.");
+  console.table(
+    sourceWarnings.map(({ type, id, name, status, error }) => ({
+      type,
+      id,
+      name,
+      status,
+      error,
+    })),
+  );
+}
+
 if (dryRun) {
   console.log("Dry run complete. Firestore was not changed.");
 } else {
@@ -512,10 +620,14 @@ if (dryRun) {
       lastUpdatedAt: completedAt,
       lastVerified: verifiedDate,
       eventCount: syncedEvents.length,
-      failureCount: failures.length,
-      sourceCount: seedConcerts.length,
+      failureCount: sourceWarnings.length,
+      eventFailureCount: failures.length,
+      sourceCheckCount: sourceCheckReport.sourceCount,
+      sourceCheckLastRunAt: sourceCheckReport.checkedAt,
+      sourceCount: seedConcerts.length + sourceCheckReport.sourceCount,
+      sourceWarnings,
     },
   });
 }
 
-process.exit(failures.length ? 1 : 0);
+process.exit(0);

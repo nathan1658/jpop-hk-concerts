@@ -2,7 +2,7 @@ import { collection, doc, getDoc, getDocs, onSnapshot } from "firebase/firestore
 
 import { seedConcerts } from "@/data/concerts";
 import { getClientDb } from "@/lib/firebase";
-import type { ConcertEvent, SyncMetadata, TicketStatus } from "@/types/concert";
+import type { ConcertEvent, SyncMetadata, SyncWarning, TicketStatus } from "@/types/concert";
 
 export const HONG_KONG_TIME_ZONE = "Asia/Hong_Kong";
 export const SOURCE_SYNC_METADATA_ID = "source-sync";
@@ -116,16 +116,77 @@ export const subscribeToConcerts = (
   );
 };
 
+const toMetadataString = (value: unknown) => (typeof value === "string" ? value : "");
+
+const toMetadataNumber = (value: unknown) =>
+  typeof value === "number" ? value : Number(value ?? 0);
+
+const syncWarningTypes = new Set<SyncWarning["type"]>([
+  "source-check",
+  "event-scrape",
+  "sync-report",
+]);
+
+const syncWarningSourceKinds = new Set(["venue", "promoter", "ticketing", "discovery", "event"]);
+const syncWarningAuthorities = new Set([
+  "canonical",
+  "confirmation",
+  "discovery",
+  "official",
+  "promoter",
+  "ticketing",
+  "venue",
+]);
+
+const toSyncWarning = (value: unknown): SyncWarning | null => {
+  if (!value || typeof value !== "object") {
+    return null;
+  }
+
+  const data = value as Record<string, unknown>;
+  const type = syncWarningTypes.has(data.type as SyncWarning["type"])
+    ? (data.type as SyncWarning["type"])
+    : "source-check";
+  const sourceKind = toMetadataString(data.sourceKind);
+  const authority = toMetadataString(data.authority);
+  const id = toMetadataString(data.id) || "unknown-source";
+  const name = toMetadataString(data.name) || id;
+  const error = toMetadataString(data.error);
+
+  return {
+    type,
+    id,
+    name,
+    url: toMetadataString(data.url) || undefined,
+    sourceKind: syncWarningSourceKinds.has(sourceKind)
+      ? (sourceKind as SyncWarning["sourceKind"])
+      : undefined,
+    authority: syncWarningAuthorities.has(authority)
+      ? (authority as SyncWarning["authority"])
+      : undefined,
+    status: toMetadataString(data.status) || undefined,
+    error: error || "Source unavailable",
+    checkedAt: toMetadataString(data.checkedAt) || undefined,
+  };
+};
+
 const toSyncMetadata = (id: string, data: Record<string, unknown>): SyncMetadata => ({
   id,
   status: data.status === "partial" || data.status === "failed" ? data.status : "success",
-  lastRunAt: typeof data.lastRunAt === "string" ? data.lastRunAt : "",
-  lastUpdatedAt: typeof data.lastUpdatedAt === "string" ? data.lastUpdatedAt : "",
-  lastVerified: typeof data.lastVerified === "string" ? data.lastVerified : "",
-  eventCount: typeof data.eventCount === "number" ? data.eventCount : Number(data.eventCount ?? 0),
-  failureCount:
-    typeof data.failureCount === "number" ? data.failureCount : Number(data.failureCount ?? 0),
-  sourceCount: typeof data.sourceCount === "number" ? data.sourceCount : Number(data.sourceCount ?? 0),
+  lastRunAt: toMetadataString(data.lastRunAt),
+  lastUpdatedAt: toMetadataString(data.lastUpdatedAt),
+  lastVerified: toMetadataString(data.lastVerified),
+  eventCount: toMetadataNumber(data.eventCount),
+  failureCount: toMetadataNumber(data.failureCount),
+  eventFailureCount: toMetadataNumber(data.eventFailureCount),
+  sourceCount: toMetadataNumber(data.sourceCount),
+  sourceCheckCount: toMetadataNumber(data.sourceCheckCount),
+  sourceCheckLastRunAt: toMetadataString(data.sourceCheckLastRunAt),
+  sourceWarnings: Array.isArray(data.sourceWarnings)
+    ? data.sourceWarnings
+        .map(toSyncWarning)
+        .filter((warning): warning is SyncWarning => Boolean(warning))
+    : [],
 });
 
 export const loadSyncMetadata = async (): Promise<SyncMetadata | null> => {
